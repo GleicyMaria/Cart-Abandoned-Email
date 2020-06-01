@@ -1,0 +1,95 @@
+global class AbandonedCartEmailBatch implements Database.Batchable<sObject> {
+    
+    global final String query;
+    
+    global AbandonedCartEmailBatch () {
+        if (!Test.isRunningTest()){
+         this.query = 'SELECT Id, LastModifiedDate, ccrz__EncryptedId__c, ccrz__User__c, ccrz__User__r.Email,ccrz__Account__r.Id' +
+            ' FROM ccrz__E_Cart__c' + 
+            ' WHERE Tempo__c >= 60 AND ccrz__ActiveCart__c = TRUE AND ccrz__CartStatus__c = \'Open\' AND ccrz__TotalQuantity__c >= 1 AND ccrz__CartType__c = \'Cart\' AND abandonedCart__c = false';
+        }else {
+            this.query = 'SELECT Id, LastModifiedDate, ccrz__EncryptedId__c, ccrz__User__c, ccrz__User__r.Email,ccrz__Account__r.Id' +
+            ' FROM ccrz__E_Cart__c' + 
+            ' WHERE ccrz__ActiveCart__c = TRUE AND ccrz__CartStatus__c = \'Open\' AND ccrz__TotalQuantity__c >= 1 AND abandonedCart__c = false LIMIT 1' ;  
+        }
+        
+        }
+    
+    global Database.QueryLocator start(Database.BatchableContext BC) {
+      return Database.getQueryLocator(this.query);
+    }
+    
+    global void execute(Database.BatchableContext BC, List<ccrz__E_Cart__c> scope) {
+        EmailTemplate temp = [SELECT Id FROM EmailTemplate WHERE DeveloperName = 'AbandonedCartEmailVF'];
+        List<Messaging.Email> emails = new List<Messaging.Email>();
+        Messaging.reserveSingleEmailCapacity(scope.size());
+        List<ccrz__E_Cart__c> updtCart = new List<ccrz__E_Cart__c>(); 
+        for (ccrz__E_Cart__c cart : scope) {
+            String encryptedId = cart.ccrz__EncryptedId__c;
+            String userEmail;
+            cart.abandonedCart__c= TRUE;
+            updtCart.add(cart);
+         
+         final AccountTeamMember atm = getAccountTeamMember(cart.ccrz__Account__r.Id);
+            
+            if(atm != null){
+                final User user = getUser(atm.User.Id);
+                userEmail = user.Email;
+                
+            }else{
+                
+                userEmail = 'teste@Teste.com';
+            }
+            
+            Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
+            mail.setTemplateId(temp.Id);
+            mail.setTargetObjectId(cart.ccrz__User__c);
+            mail.setTreatTargetObjectAsRecipient (false);
+            mail.setWhatId(cart.Id);
+            mail.setToAddresses(new List<String> {userEmail});
+            mail.setSaveAsActivity(false);
+            emails.add(mail);
+        }
+        messaging.SendEmail(emails);
+        update updtCart;
+    }
+    
+    private static AccountTeamMember getAccountTeamMember(final Id accountId){
+        
+        List<AccountTeamMember> acmt = [SELECT User.Id, Account.Id, TeamMemberRole, Id FROM AccountTeamMember 
+                                        WHERE Account.Id =: accountId
+                                        AND TeamMemberRole = 'Account Manager'
+                                        LIMIT 1];
+        if(!acmt.isEmpty()){
+            return acmt[0];
+        } else {
+            return null;
+        }
+        
+    }
+    
+    private static User getUser (final Id userId) {
+        return [SELECT Name, Email
+                FROM User
+                WHERE Id =: userId
+                LIMIT 1
+               ];
+    }
+     
+    global void finish(Database.BatchableContext BC) {
+       //Abortando Jobs Antigos  
+       List<CronJobDetail> cjDtlLst = [SELECT Id FROM CronJobDetail WHERE Name LIKE 'Job Abandoned Cart%'];        
+       List<CronTrigger> ctLst = [SELECT Id FROM CronTrigger WHERE CronJobDetailId IN :cjDtlLst];    
+       for(CronTrigger ct:ctLst){
+        System.abortJob(ct.Id);
+       } 
+        
+       //reagenda a classe pra executar de uma em uma hora
+       Datetime hour = System.now();
+       hour = hour.addHours(1);
+       String chron_exp = '' + hour.second() + ' ' + hour.minute() + ' ' + hour.hour() + ' ' + hour.day() + ' ' + hour.month() + ' ? ' + hour.year();
+       System.schedule('Job Abandoned Cart ' + System.now(), chron_exp , new AbandonedCartEmail()); 
+       
+        
+    }
+}
