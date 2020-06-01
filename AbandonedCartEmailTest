@@ -1,0 +1,105 @@
+@isTest
+public class AbandonedCartEmailTest {
+    public static String CRON_EXP = '0 0 0 3 10 ? 2021 ';
+    @testSetup
+    static void setup(){
+        
+        Date data = Date.today();
+            
+        //Criação da conta   
+        Account account = new Account();
+        account.Name = 'Conta Teste';
+        account.Phone = '5555555';
+        account.Product_List__c = 'Crystal Granular MOP; Crystal Inside';
+        insert account;
+        System.debug(account.id);
+        
+        //Busca do Id do perfil Standard
+        Profile profileId = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
+        
+        //Criação de usuario
+        User user = new User();
+        user.FirstName = 'Teste';
+        user.LastName = 'Itelios';
+        user.Username = 'teste@t57646este.com34564678936';
+        user.Email = 'teste@teste.com';
+        user.Alias = 'teste';
+        user.TimeZoneSidKey = 'America/Sao_Paulo';
+        user.LocaleSidKey = 'pt_BR';
+        user.EmailEncodingKey = 'UTF-8';
+        user.ProfileId = profileId.id;
+        user.LanguageLocaleKey = 'pt_BR';
+        insert user;
+        
+        //Criação do Account Member     
+        AccountTeamMember atm = new AccountTeamMember();
+        atm.UserId = user.Id;
+        atm.AccountId = account.id;
+        atm.TeamMemberRole = 'Account Manager';     
+        insert atm;
+        
+        //criação produto 
+        ccrz__E_Product__c ccProduto = new ccrz__E_Product__c();
+        ccProduto.Name = 'Produto Teste';
+        ccProduto.ccrz__SKU__c = '43625';
+        ccProduto.ccrz__Quantityperunit__c = 10000;
+        ccProduto.ccrz__StartDate__c = data;
+        ccProduto.ccrz__EndDate__c= data.addDays(100);  
+        ccProduto.ccrz__ProductStatus__c =  'Released';
+        insert ccProduto;  
+        
+        // criação da price list 
+        ccrz__E_PriceList__c ccPriceList = new ccrz__E_PriceList__c();
+        ccPriceList.Name = 'Price Test' ; 
+        ccPriceList.ccrz__StartDate__c = data;
+        ccPriceList.ccrz__EndDate__c= data.addDays(100);
+        ccPriceList.ccrz__Enabled__c = True;
+        insert ccPriceList;
+        
+        // criação do price list item   
+        ccrz__E_PriceListItem__c plItem = new ccrz__E_PriceListItem__c();
+        plItem.ccrz__Pricelist__c = ccPriceList.Id;
+        plItem.ccrz__Product__c = ccProduto.Id;
+        plItem.ccrz__Price__c = 2500.00;
+        plItem.ccrz__StartDate__c = data;
+        plItem.ccrz__EndDate__c= data.addDays(100);
+        insert plItem;
+        
+        //Criação de uma Taxa de pagamento
+        Taxa_de_Pagamento__c tx = new Taxa_de_Pagamento__c();
+        tx.Code__c = 'aaa134';
+        tx.Name = 'teste tx';
+        tx.Taxa__c = 1.301;
+        insert tx;
+        
+        // criação do carrinho 
+        ccrz__E_Cart__c ccCart = new ccrz__E_Cart__c();
+        ccCart.CurrencyIsoCode = 'BRL';
+        ccCart.ccrz__ShipMethod__c = 'CAJATI/SP-VARJÃO/GO';
+        ccCart.ccrz__Account__c = account.Id;
+        ccCart.TaxOption__c = tx.Id;
+        ccCart.PaymentTaxRate__c = tx.Taxa__c;
+        ccCart.ccrz__TaxAmount__c = 1235.0;
+        ccCart.ccrz__CartStatus__c = 'Open';
+        ccCart.ccrz__ActiveCart__c = True;
+        ccCart.ccrz__User__c = user.Id;
+        insert ccCart ;
+        
+        
+        //criação de item para o carrinho 
+        ccrz__E_CartItem__c ccCartItem = new ccrz__E_CartItem__c();
+        ccCartItem.ccrz__Cart__c = ccCart.Id;
+        ccCartItem.ccrz__Product__c = ccProduto.Id;
+        ccCartItem.ccrz__Price__c =  plItem.ccrz__Price__c;
+        insert ccCartItem;  
+        
+        
+        
+    }
+    
+    static testmethod void AbandonedCart(){
+        Test.startTest();
+        String jobId = System.schedule('AbandonedCartTest',CRON_EXP,new AbandonedCartEmail());
+        Test.stopTest();
+    }
+}
