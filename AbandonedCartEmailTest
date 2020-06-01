@@ -10,7 +10,6 @@ public class AbandonedCartEmailTest {
         Account account = new Account();
         account.Name = 'Conta Teste';
         account.Phone = '5555555';
-        account.Product_List__c = 'Crystal Granular MOP; Crystal Inside';
         insert account;
         System.debug(account.id);
         
@@ -20,7 +19,7 @@ public class AbandonedCartEmailTest {
         //Criação de usuario
         User user = new User();
         user.FirstName = 'Teste';
-        user.LastName = 'Itelios';
+        user.LastName = 'teste';
         user.Username = 'teste@t57646este.com34564678936';
         user.Email = 'teste@teste.com';
         user.Alias = 'teste';
@@ -75,7 +74,7 @@ public class AbandonedCartEmailTest {
         // criação do carrinho 
         ccrz__E_Cart__c ccCart = new ccrz__E_Cart__c();
         ccCart.CurrencyIsoCode = 'BRL';
-        ccCart.ccrz__ShipMethod__c = 'CAJATI/SP-VARJÃO/GO';
+        ccCart.ccrz__ShipMethod__c = 'Envio direto';
         ccCart.ccrz__Account__c = account.Id;
         ccCart.TaxOption__c = tx.Id;
         ccCart.PaymentTaxRate__c = tx.Taxa__c;
